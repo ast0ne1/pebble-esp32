@@ -543,10 +543,15 @@ static void clock_tick(lv_timer_t *t)
 {
     (void)t;
     time_t now = time(NULL);
-    struct tm tm;
-    localtime_r(&now, &tm);
     char buf[8];
-    snprintf(buf, sizeof(buf), "%02d:%02d", tm.tm_hour, tm.tm_min);
+    /* Until SNTP lands after Wi‑Fi, keep the placeholder — don't show 00:00 epoch. */
+    if (now < 1700000000 /* ~2023-11 */) {
+        snprintf(buf, sizeof(buf), "--:--");
+    } else {
+        struct tm tm;
+        localtime_r(&now, &tm);
+        snprintf(buf, sizeof(buf), "%02d:%02d", tm.tm_hour, tm.tm_min);
+    }
     if (s_clock) {
         lv_label_set_text(s_clock, buf);
         lv_obj_t *shadow = (lv_obj_t *)lv_obj_get_user_data(s_clock);
@@ -723,6 +728,9 @@ static void fill_settings_rows(lv_obj_t *list)
     char sleep_meta[16];
     shell_timeout_label(sleep_meta, sizeof(sleep_meta));
     add_row(list, "Sleep", sleep_meta, "sleep", false);
+    char tz_meta[20];
+    settings_tz_label(tz_meta, sizeof(tz_meta));
+    add_row(list, "Time zone", tz_meta, "timezone", false);
     add_row(list, "Battery", batt_meta, "battery", false);
     add_row(list, "Power off", "", "power", true);
 }
@@ -955,7 +963,7 @@ void shell_start(void)
     shell_set_mood("content");
     shell_note_activity();
     clock_tick(NULL);
-    lv_timer_create(clock_tick, 15000, NULL);
+    lv_timer_create(clock_tick, 1000, NULL);
     lv_timer_create(idle_tick, 1000, NULL);
     lv_timer_create(wake_tick, 100, NULL);
     s_net_mood_timer = lv_timer_create(net_mood_tick, 30000, NULL);

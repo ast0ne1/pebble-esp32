@@ -279,7 +279,18 @@ static void ap_click(lv_event_t *e)
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     if (idx < 0 || idx >= s_ui.ap_n) return;
-    show_join(s_ui.aps[idx].ssid, s_ui.aps[idx].open != 0);
+    const wifi_found_t *ap = &s_ui.aps[idx];
+    /* Saved network (*): rejoin with NVS password — don't force the keypad. */
+    if (ap->saved) {
+        char pass[65] = {0};
+        if (port_wifi_saved_pass(ap->ssid, pass, sizeof(pass))) {
+            snprintf(s_ui.pick_ssid, sizeof(s_ui.pick_ssid), "%s", ap->ssid);
+            do_join(pass);
+            memset(pass, 0, sizeof(pass));
+            return;
+        }
+    }
+    show_join(ap->ssid, ap->open != 0);
 }
 
 static void clear_list(void)

@@ -19,13 +19,14 @@ void shell_ptt_toggle(void); /* press-to-start / press-to-stop */
 bool shell_ptt_is_down(void);
 
 void settings_load(void);
-void settings_open_panel(const char *id);  /* wifi | pairing | sound | sleep | battery | power */
+void settings_open_panel(const char *id);  /* wifi | pairing | sound | sleep | timezone | battery | power */
 void settings_close_panel(void);
 void shell_refresh_settings(void); /* rebuild hub row meta (Sound %, Sleep, …) */
 /* Swipe gestures on a full-screen settings panel (layer_top). */
 void shell_wire_panel_gestures(lv_obj_t *panel);
 int  settings_get_volume(void);   /* 0..100 */
 bool settings_sounds_on(void);    /* chirps / UI sounds */
+void settings_tz_label(char *out, size_t n); /* short city name for Settings row */
 
 lv_obj_t *ui_back_btn(lv_obj_t *parent, void (*action)(void));
 

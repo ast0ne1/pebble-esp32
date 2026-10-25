@@ -13,6 +13,7 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+#include "esp_sntp.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
@@ -22,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static const char *TAG = "port";
 #define KV_NS "pebble"
@@ -245,8 +247,44 @@ static int  s_try_state; /* WIFI_TRY_* */
 static int  s_pm_wifi;   /* nested hold while radio busy */
 /* Muse-style: disconnect while joining → retry, then fail (never hang on Joining). */
 static bool     s_joining;
+static bool     s_expect_leave; /* ignore ASSOC_LEAVE from our own disconnect() */
+static bool     s_sntp_started;
 static int      s_join_retry;
 static uint32_t s_join_deadline_ms;
+
+void port_tz_set(const char *posix_tz)
+{
+    const char *tz = (posix_tz && posix_tz[0]) ? posix_tz : "UTC0";
+    setenv("TZ", tz, 1);
+    tzset();
+    ESP_LOGI(TAG, "TZ=%s", tz);
+}
+
+static void sntp_on_sync(struct timeval *tv)
+{
+    (void)tv;
+    time_t now = time(NULL);
+    struct tm tm;
+    localtime_r(&now, &tm);
+    ESP_LOGI(TAG, "time synced %04d-%02d-%02d %02d:%02d",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min);
+}
+
+static void sntp_start(void)
+{
+    if (s_sntp_started) {
+        /* Already running — nudge another poll after roam / reboot join. */
+        esp_sntp_restart();
+        return;
+    }
+    s_sntp_started = true;
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_setservername(1, "time.cloudflare.com");
+    esp_sntp_set_time_sync_notification_cb(sntp_on_sync);
+    esp_sntp_init();
+    ESP_LOGI(TAG, "sntp started");
+}
 
 static void wifi_cred_load(wifi_cred_t *out)
 {
@@ -303,6 +341,7 @@ static void on_got_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     }
     if (was_busy) wifi_pm(false);
     ESP_LOGI(TAG, "wifi ip %s ssid %s", s_ip, s_ssid);
+    sntp_start();
 }
 
 static void on_wifi_disc(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -317,13 +356,21 @@ static void on_wifi_disc(void *arg, esp_event_base_t base, int32_t id, void *dat
     s_ip[0] = 0;
 
     if (s_joining) {
-        /* Expected after disconnect(), or a failed assoc — retry like Muse. */
+        /* Our own disconnect() before a fresh join — connect() already queued.
+         * Counting this as a retry double-connects and burns the budget. */
+        if (s_expect_leave && reason == WIFI_REASON_ASSOC_LEAVE) {
+            s_expect_leave = false;
+            ESP_LOGI(TAG, "wifi leave (switching AP)");
+            return;
+        }
+        s_expect_leave = false;
+        /* Real failed assoc — retry like Muse. */
         if (s_join_retry < WIFI_JOIN_RETRY_MAX) {
             s_join_retry++;
             ESP_LOGI(TAG, "wifi retry %d/%d (reason %u)", s_join_retry,
                      WIFI_JOIN_RETRY_MAX, (unsigned)reason);
             esp_err_t err = esp_wifi_connect();
-            if (err != ESP_OK) {
+            if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) {
                 join_fail(esp_err_to_name(err));
             }
             return;
@@ -453,30 +500,36 @@ void port_wifi_connect(const char *ssid, const char *pass)
     if (pass) snprintf(s_pending_pass, sizeof(s_pending_pass), "%s", pass);
     s_pending_save = true;
     s_joining = true;
+    s_expect_leave = false;
     s_join_retry = 0;
     s_try_state = WIFI_TRY_BUSY;
     s_wifi_up = false;
     s_ip[0] = 0;
     s_join_deadline_ms = port_millis() + WIFI_JOIN_TIMEOUT_MS;
 
-    /* Only disconnect if associated — otherwise the event eats a retry slot. */
+    /* Only disconnect if associated — ignore that ASSOC_LEAVE in on_wifi_disc. */
     wifi_ap_record_t apinfo;
     if (esp_wifi_sta_get_ap_info(&apinfo) == ESP_OK) {
+        s_expect_leave = true;
         (void)esp_wifi_disconnect();
+        /* Let the driver settle before set_config (avoids ESP_ERR_WIFI_STATE). */
+        port_delay_ms(120);
     }
 
     esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     if (err == ESP_ERR_WIFI_STATE) {
-        /* Still tearing down — one short wait off the event loop is OK. */
         port_delay_ms(200);
         err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     }
     if (err != ESP_OK) {
+        s_expect_leave = false;
         join_fail(esp_err_to_name(err));
         return;
     }
     err = esp_wifi_connect();
-    if (err != ESP_OK) {
+    /* ESP_ERR_WIFI_CONN = connect already in flight (e.g. after leave) — OK. */
+    if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) {
+        s_expect_leave = false;
         join_fail(esp_err_to_name(err));
     }
 }
@@ -502,6 +555,16 @@ int port_wifi_try_state(void)
 }
 
 bool port_wifi_connected(void) { return s_wifi_up; }
+
+bool port_wifi_saved_pass(const char *ssid, char *pass_out, size_t pass_n)
+{
+    if (!ssid || !ssid[0] || !pass_out || pass_n == 0) return false;
+    wifi_cred_t c;
+    wifi_cred_load(&c);
+    if (!c.ssid[0] || strcmp(c.ssid, ssid) != 0) return false;
+    snprintf(pass_out, pass_n, "%s", c.pass);
+    return true;
+}
 
 void port_wifi_ssid(char *out, size_t n)
 {

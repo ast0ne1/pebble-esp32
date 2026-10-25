@@ -21,6 +21,18 @@ uint32_t g_sim_us;
 void port_lock(void) {}
 void port_unlock(void) {}
 
+void port_tz_set(const char *posix_tz)
+{
+    const char *tz = (posix_tz && posix_tz[0]) ? posix_tz : "UTC0";
+#ifdef _WIN32
+    _putenv_s("TZ", tz);
+    _tzset();
+#else
+    setenv("TZ", tz, 1);
+    tzset();
+#endif
+}
+
 void port_log(const char *tag, const char *fmt, ...)
 {
     va_list ap;
@@ -183,6 +195,17 @@ void port_wifi_boot_connect(void)
 
 int  port_wifi_try_state(void) { return s_try_state; }
 bool port_wifi_connected(void) { return s_wifi; }
+
+bool port_wifi_saved_pass(const char *ssid, char *pass_out, size_t pass_n)
+{
+    if (!ssid || !ssid[0] || !pass_out || pass_n == 0) return false;
+    wifi_cred_t c;
+    memset(&c, 0, sizeof(c));
+    if (!port_kv_read("wificfg", &c, sizeof(c)) || !c.ssid[0]) return false;
+    if (strcmp(c.ssid, ssid) != 0) return false;
+    snprintf(pass_out, pass_n, "%s", c.pass);
+    return true;
+}
 
 void port_wifi_ssid(char *out, size_t n)
 {

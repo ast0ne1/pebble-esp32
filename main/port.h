@@ -17,6 +17,9 @@ void port_kv_erase(const char *key);
 uint32_t port_millis(void);
 void     port_delay_ms(uint32_t ms);
 
+/* POSIX TZ string (e.g. "GMT0BST,M3.5.0/1,M10.5.0"). Empty → UTC. */
+void port_tz_set(const char *posix_tz);
+
 void port_power_off(void);
 int  port_battery_percent(void);   /* -1 if unknown / no pack */
 bool port_battery_charging(void);
@@ -54,6 +57,8 @@ int  port_wifi_try_state(void);
 bool port_wifi_connected(void);
 void port_wifi_ssid(char *out, size_t n);   /* empty if none */
 void port_wifi_ip(char *out, size_t n);
+/* True if NVS has a password (may be empty) for this SSID. */
+bool port_wifi_saved_pass(const char *ssid, char *pass_out, size_t pass_n);
 /* After boot: if NVS has credentials, start STA join once. */
 void port_wifi_boot_connect(void);
 

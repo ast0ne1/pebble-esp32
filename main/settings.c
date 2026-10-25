@@ -10,22 +10,67 @@ typedef struct {
     int32_t volume;
     int32_t timeout;
     int32_t sound_on;
+    int32_t tz_id; /* index into s_tz — appended; older NVS blobs leave 0 */
 } pebble_cfg_t;
+
+/* POSIX TZ. Same civil offset → one row; cities as IATA-style codes.
+ * meta = Settings hub (short); label = picker row. */
+static const struct {
+    const char *meta;
+    const char *label;
+    const char *posix;
+} s_tz[] = {
+    { "GMT+0",    "GMT+0  [UTC]",         "UTC0" },
+    { "GMT+0",    "GMT+0  [LON]",         "GMT0BST,M3.5.0/1,M10.5.0" },
+    { "GMT+1",    "GMT+1  [CPH/BER/PAR]", "CET-1CEST,M3.5.0,M10.5.0/3" },
+    { "GMT-5",    "GMT-5  [NYC/YYZ]",     "EST5EDT,M3.2.0,M11.1.0" },
+    { "GMT-6",    "GMT-6  [CHI]",         "CST6CDT,M3.2.0,M11.1.0" },
+    { "GMT-7",    "GMT-7  [DEN]",         "MST7MDT,M3.2.0,M11.1.0" },
+    { "GMT-8",    "GMT-8  [LAX]",         "PST8PDT,M3.2.0,M11.1.0" },
+    { "GMT-3",    "GMT-3  [SAO]",         "BRT3" },
+    { "GMT+4",    "GMT+4  [DXB]",         "GST-4" },
+    { "GMT+5:30", "GMT+5:30  [DEL]",      "IST-5:30" },
+    { "GMT+8",    "GMT+8  [SIN/HKG]",     "SGT-8" },
+    { "GMT+9",    "GMT+9  [TYO]",         "JST-9" },
+    { "GMT+10",   "GMT+10  [SYD]",        "AEST-10AEDT,M10.1.0,M4.1.0/3" },
+    { "GMT+12",   "GMT+12  [AKL]",        "NZST-12NZDT,M9.5.0,M4.1.0/3" },
+};
+
+#define TZ_COUNT ((int)(sizeof(s_tz) / sizeof(s_tz[0])))
 
 static int  s_volume = 90;
 static bool s_sound_on = true; /* chirps / UI sounds */
+static int  s_tz_id = 2;       /* GMT+1 CPH/BER/PAR */
 static lv_obj_t *s_panel;
 static lv_obj_t *s_back;
 
 int settings_get_volume(void) { return s_volume; }
 bool settings_sounds_on(void) { return s_sound_on; }
 
+void settings_tz_label(char *out, size_t n)
+{
+    if (!out || n == 0) return;
+    int id = s_tz_id;
+    if (id < 0 || id >= TZ_COUNT) id = 0;
+    snprintf(out, n, "%s", s_tz[id].meta);
+}
+
+static void tz_apply(void)
+{
+    int id = s_tz_id;
+    if (id < 0 || id >= TZ_COUNT) id = 0;
+    port_tz_set(s_tz[id].posix);
+}
+
 void settings_load(void)
 {
     pebble_cfg_t v;
+    memset(&v, 0, sizeof(v));
     if (!port_kv_read("cfg", &v, sizeof(v))) {
         port_brightness_set(45);
         shell_set_timeout(300);
+        s_tz_id = 2;
+        tz_apply();
         return;
     }
     if (v.bright >= 5 && v.bright <= 100) port_brightness_set(v.bright);
@@ -50,6 +95,9 @@ void settings_load(void)
         }
         shell_set_timeout(hit ? best : 300);
     }
+    if (v.tz_id >= 0 && v.tz_id < TZ_COUNT) s_tz_id = (int)v.tz_id;
+    else s_tz_id = 2;
+    tz_apply();
 }
 
 static void settings_save(void)
@@ -59,6 +107,7 @@ static void settings_save(void)
         .volume = s_volume,
         .timeout = shell_get_timeout(),
         .sound_on = s_sound_on,
+        .tz_id = s_tz_id,
     };
     port_kv_write("cfg", &v, sizeof(v));
 }
@@ -276,6 +325,67 @@ static void open_sleep(void)
     }
 }
 
+static void tz_pick_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    int id = (int)(intptr_t)lv_event_get_user_data(e);
+    if (id < 0 || id >= TZ_COUNT) return;
+    s_tz_id = id;
+    tz_apply();
+    settings_save();
+    shell_note_activity();
+    settings_close_panel();
+    settings_open_panel("timezone");
+}
+
+static void open_timezone(void)
+{
+    lv_obj_t *p = panel_base("Time zone");
+
+    lv_obj_t *sub = lv_label_create(p);
+    lv_label_set_text(sub, "Home clock");
+    lv_obj_set_style_text_font(sub, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(sub, lv_color_hex(0x9A8F7E), 0);
+    lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 68);
+
+    lv_obj_t *list = lv_obj_create(p);
+    lv_obj_set_size(list, 280, 320);
+    lv_obj_align(list, LV_ALIGN_TOP_MID, 0, 92);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_row(list, 6, 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+
+    for (int i = 0; i < TZ_COUNT; i++) {
+        bool on = (i == s_tz_id);
+        lv_obj_t *btn = lv_button_create(list);
+        lv_obj_set_size(btn, 280, 38);
+        lv_obj_set_style_radius(btn, 12, 0);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(on ? 0x3A342C : 0x2A2622), 0);
+        lv_obj_set_style_shadow_width(btn, 0, 0);
+
+        lv_obj_t *lab = lv_label_create(btn);
+        lv_label_set_text(lab, s_tz[i].label);
+        lv_obj_set_style_text_font(lab, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(lab, lv_color_hex(0xE8DCC8), 0);
+        lv_obj_align(lab, LV_ALIGN_LEFT_MID, 14, 0);
+
+        if (on) {
+            lv_obj_t *mark = lv_label_create(btn);
+            lv_label_set_text(mark, LV_SYMBOL_OK);
+            lv_obj_set_style_text_color(mark, lv_color_hex(0xC7BBA8), 0);
+            lv_obj_align(mark, LV_ALIGN_RIGHT_MID, -14, 0);
+        }
+
+        lv_obj_add_event_cb(btn, tz_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    }
+}
+
 static void open_battery(void)
 {
     /* Read-only status — not picker rows (those look editable). */
@@ -346,6 +456,8 @@ void settings_open_panel(const char *id)
         open_sound();
     } else if (strcmp(id, "sleep") == 0) {
         open_sleep();
+    } else if (strcmp(id, "timezone") == 0) {
+        open_timezone();
     } else if (strcmp(id, "battery") == 0) {
         open_battery();
     } else if (strcmp(id, "power") == 0) {
