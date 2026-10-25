@@ -1,0 +1,15 @@
+## IDF Component Manager — same board stack as The-Badge (no TinyUSB / BLE HID)
+## Tested on ESP-IDF 6.0.1 (see docs/SETUP.md). Floor is 5.5 for Component Manager.
+dependencies:
+  idf: ">=5.5.0"
+  waveshare/esp32_s3_touch_amoled_1_75c:
+    version: "^3.0.0"
+  lvgl/lvgl:
+    version: "9.5.0"
+    public: true
+  # 1.75C BSP 3.x has no bsp_io_expander_init — bring TCA9554 ourselves for PWR/EXIO4
+  espressif/esp_io_expander_tca9554: "^2.0.0"
+  # IDF 6 moved cJSON out of the tree
+  espressif/cJSON: "^1.7.19"
+  # Wake word / MultiNet (models flash to the "model" partition)
+  espressif/esp-sr: "^2.1.0"

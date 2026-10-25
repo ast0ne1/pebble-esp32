@@ -1,0 +1,20 @@
+Pebble firmware for StonePi.
+
+Display bring-up (real panel off via panel handle), AXP2101 unused-rail
+shutdown, tickless idle / light-sleep guidance, the port.h seam, and the
+PC LVGL simulator (sim/build.py, main_sim, port_sim, server.py tile stream)
+are adapted from:
+
+  The Badge — https://github.com/curisama/The-Badge
+  Copyright (c) 2026 curisama
+  MIT License (see upstream LICENSE)
+
+The phone-style multi-tap keypad (main/keypad.c) is adapted from Muse Gadget
+muse_keypad.c:
+
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  Licensed under the Apache License, Version 2.0
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Waveshare BSP / LVGL are pulled by the IDF Component Manager (or
+sim/setup_sim.py for the PC build) per main/idf_component.yml.

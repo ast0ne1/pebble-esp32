@@ -1,0 +1,8 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# 32 MB flash (1.75C). model = ESP-SR WakeNet/MultiNet (label fixed by esp-sr).
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, ,        5M,
+model,    data, ,        ,        5M,
+storage,  data, spiffs,  ,        1M,
+coredump, data, coredump, ,       64K,

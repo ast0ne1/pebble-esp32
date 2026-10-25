@@ -1,0 +1,36 @@
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+main/secrets.h
+.vscode/
+.idea/
+*.pyc
+__pycache__/
+
+# Baked LVGL art (regenerate: python tools/mkassets.py)
+# Keep assets/*.c in git so clones build without Pillow — do not ignore.
+
+# PC simulator
+sim/lvgl/
+sim/lvgl_obj/
+sim/pebble_obj/
+sim/liblvgl.a
+sim/liblvgl.stamp
+sim/pebble_sim
+sim/pebble_sim.exe
+sim/shots/
+sim/sim_out.txt
+sim/sim_err.txt
+sim/in_test.txt
+
+# Protocol stub runtime state
+tools/.pebble_stub_state.json
+tools/.pebble_stub_state.tmp
+
+# Internal planning / split-of-work notes (not for the public firmware repo)
+HANDOFF.md
+
+# WebSerial merge output (regenerate: python tools/mkflash.py)
+flash/pebble-merged.bin

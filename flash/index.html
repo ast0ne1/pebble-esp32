@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pebble — flash firmware</title>
+  <script
+    type="module"
+    src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"
+  ></script>
+  <style>
+    :root {
+      --bg0: #0e1012;
+      --bg1: #1a1e22;
+      --sand: #c7bba8;
+      --text: #f4f1ea;
+      --muted: #9aa0a6;
+      --accent: #6b8f71;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, #2a322c 0%, transparent 55%),
+        linear-gradient(165deg, var(--bg1), var(--bg0));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+    }
+    main {
+      width: min(28rem, 100%);
+      text-align: center;
+    }
+    .mark {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.25rem;
+      border-radius: 50%;
+      background: var(--sand);
+      opacity: 0.9;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.4rem;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 0 0 1.5rem;
+      font-size: 0.95rem;
+    }
+    esp-web-install-button {
+      display: block;
+      margin: 0 auto 1.75rem;
+    }
+    esp-web-install-button:not([manifest]) {
+      display: none;
+    }
+    button[slot="activate"],
+    .fallback {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.85rem 1.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #0e1012;
+    }
+    button[slot="activate"]:hover { filter: brightness(1.08); }
+    ol {
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.875rem;
+      line-height: 1.55;
+      padding-left: 1.25rem;
+      margin: 0;
+    }
+    li + li { margin-top: 0.45rem; }
+    code {
+      font-size: 0.8em;
+      color: var(--sand);
+    }
+    .note {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true"></div>
+    <h1>Pebble</h1>
+    <p>Flash firmware to the Waveshare ESP32-S3 Touch AMOLED 1.75C over USB.</p>
+
+    <esp-web-install-button manifest="./manifest.json">
+      <button type="button" slot="activate">Connect &amp; flash</button>
+      <span slot="unsupported" class="fallback">
+        Use Chrome or Edge on desktop — Web Serial is required.
+      </span>
+      <span slot="not-allowed" class="fallback">
+        Open this page over <code>http://localhost</code> or HTTPS.
+      </span>
+    </esp-web-install-button>
+
+    <ol>
+      <li>Hold <strong>BOOT</strong>, plug USB, then release (download mode).</li>
+      <li>Click <strong>Connect &amp; flash</strong> and pick the ESP32-S3 COM port.</li>
+      <li>First install: erase when prompted (clears NVS / Wi‑Fi).</li>
+      <li>Rebuild merge bin after firmware changes:
+        <code>python tools/mkflash.py</code></li>
+    </ol>
+    <p class="note">Board must be the <strong>1.75C</strong> (32&nbsp;MB). Plain 1.75 is not supported.</p>
+  </main>
+</body>
+</html>

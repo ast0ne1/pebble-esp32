@@ -1,0 +1,16 @@
+{
+  "name": "StonePi Pebble",
+  "version": "v0.4.0-1-gc969ab4-dirty",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "pebble-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

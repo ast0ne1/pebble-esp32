@@ -1,0 +1,47 @@
+set(PEBBLE_ASSET_SRCS
+    assets/img_pebble_idle.c
+    assets/img_pebble_listening.c
+    assets/img_pebble_thinking.c
+    assets/img_pebble_worried.c
+    assets/img_pebble_splash.c
+    assets/img_pebble_wave.c
+    assets/img_stonepi_mark.c
+    assets/pcm_nudge0.c
+    assets/pcm_nudge1.c
+    assets/pcm_nudge2.c
+)
+
+idf_component_register(
+    SRCS
+        main.c
+        port_esp.c
+        display.c
+        splash.c
+        shell.c
+        settings.c
+        pairing.c
+        wifi_ui.c
+        keypad.c
+        buttons.c
+        voice.c
+        pebble_net.c
+        wake.c
+        ${PEBBLE_ASSET_SRCS}
+    INCLUDE_DIRS "."
+    REQUIRES
+        nvs_flash
+        esp_event
+        esp_wifi
+        esp_netif
+        esp_pm
+        esp_timer
+        esp_http_client
+        mbedtls
+        driver
+        lvgl
+        waveshare__esp32_s3_touch_amoled_1_75c
+        espressif__esp_io_expander
+        espressif__esp_io_expander_tca9554
+        espressif__esp_lvgl_adapter
+        espressif__esp-sr
+)
